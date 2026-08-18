@@ -8,9 +8,10 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
+# dist included for Go embed.FS single binary build
 dist-ssr
 *.local
+
 
 # Editor directories and files
 .vscode/*
