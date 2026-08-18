@@ -1,0 +1,28 @@
+# Binaries and build artifacts
+bin/
+obj/
+*.exe
+!app.syso
+
+# Node dependencies
+node_modules/
+.pnpm-store/
+frontend/node_modules/
+frontend/.pnpm-store/
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Temporary and test files
+*.log
+scratch/
+.system_generated/
+
+# OS generated files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,279 @@
+<Window x:Class="AppsManager.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:AppsManager.ViewModels"
+        mc:Ignorable="d"
+        Title="AppsManager - 本地项目调试管理" Height="680" Width="1050"
+        WindowStartupLocation="CenterScreen"
+        Background="#121212" Foreground="#FFFFFF"
+        Closing="Window_Closing">
+
+    <Window.Resources>
+        <!-- 呼吸灯动画 -->
+        <Storyboard x:Key="BlinkAnimation" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                             From="0.4" To="1.0" Duration="0:0:1"
+                             AutoReverse="True"/>
+        </Storyboard>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- 左侧边栏 -->
+        <Grid Background="#1A1A1A">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="80"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Text="🚀 AppsManager" FontSize="20" FontWeight="Bold" Foreground="#FFFFFF"
+                       VerticalAlignment="Center" HorizontalAlignment="Center"/>
+
+            <StackPanel Grid.Row="1" Margin="15,0">
+                <Button Content="+ 添加新项目" Height="36" Command="{Binding AddProjectCommand}"
+                        Background="#2E7D32" Foreground="#FFFFFF" BorderThickness="0" Margin="0,5">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+                <Button Content="🛑 一键停止所有" Height="36" Command="{Binding StopAllCommand}"
+                        Background="#C62828" Foreground="#FFFFFF" BorderThickness="0" Margin="0,5">
+                    <Button.Resources>
+                        <Style TargetType="Border">
+                            <Setter Property="CornerRadius" Value="6"/>
+                        </Style>
+                    </Button.Resources>
+                </Button>
+            </StackPanel>
+
+            <GroupBox Header="项目分组" Grid.Row="2" Margin="15" BorderBrush="#333333" Foreground="#888888">
+                <ListBox ItemsSource="{Binding Groups}" SelectedItem="{Binding SelectedGroup}"
+                         Background="Transparent" BorderThickness="0" Foreground="#FFFFFF">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="10,6"/>
+                            <Setter Property="Margin" Value="0,2"/>
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Foreground" Value="#CCCCCC"/>
+                            <Style.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Background" Value="#2A2A2A"/>
+                                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                </ListBox>
+            </GroupBox>
+
+            <TextBlock Grid.Row="3" Text="v1.0.0 本地开发版" Foreground="#555555" Margin="15" HorizontalAlignment="Center"/>
+        </Grid>
+
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="320"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- 项目卡片网格列表 -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding FilteredProjects}" Margin="15">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border x:Name="CardBorder" Width="350" Height="230" Margin="10" Background="#1E1E1E" BorderBrush="#2D2D2D" BorderThickness="1.5" CornerRadius="8" PreviewMouseLeftButtonDown="Card_PreviewMouseLeftButtonDown">
+                                <Grid Margin="12">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    
+                                    <!-- 卡片顶部 -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF" TextTrimming="CharacterEllipsis"/>
+                                        <Border Grid.Column="1" Background="#2D2D2D" CornerRadius="4" Padding="6,2">
+                                            <TextBlock Text="{Binding StatusText}" Foreground="#AAAAAA" FontSize="11"/>
+                                        </Border>
+                                    </Grid>
+
+                                    <!-- 中部子服务列表 -->
+                                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,8">
+                                        <ItemsControl ItemsSource="{Binding SubServices}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,3">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Ellipse Width="8" Height="8" Fill="{Binding StatusBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="#E0E0E0" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding Port, StringFormat='Port: {0}'}" Foreground="#666666" FontSize="11" Margin="5,0,10,0" VerticalAlignment="Center"/>
+                                                        <StackPanel Grid.Column="3" Orientation="Horizontal">
+                                                            <Button Content="▶" Width="20" Height="20" Command="{Binding DataContext.StartSubServiceCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Background="#2E7D32" Foreground="#FFFFFF" BorderThickness="0" Margin="0,0,3,0" FontSize="10"/>
+                                                            <Button Content="■" Width="20" Height="20" Command="{Binding DataContext.StopSubServiceCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Background="#C62828" Foreground="#FFFFFF" BorderThickness="0" Margin="0,0,3,0" FontSize="10"/>
+                                                            <Button Content="↻" Width="20" Height="20" ToolTip="重启服务" Command="{Binding DataContext.RestartSubServiceCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Background="#00838F" Foreground="#FFFFFF" BorderThickness="0" Margin="0,0,3,0" FontSize="10"/>
+                                                            <Button Content="⚡" Width="20" Height="20" ToolTip="强杀端口冲突进程" Command="{Binding DataContext.KillPortCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Background="#EF6C00" Foreground="#FFFFFF" BorderThickness="0" Margin="0,0,3,0" FontSize="10">
+                                                                <Button.Style>
+                                                                    <Style TargetType="Button">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Port}" Value="0">
+                                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Button.Style>
+                                                            </Button>
+                                                            <Button Content="VS" Width="20" Height="20" Command="{Binding DataContext.OpenVSCodeCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Background="#1976D2" Foreground="#FFFFFF" BorderThickness="0" Margin="0,0,3,0" FontSize="9"/>
+                                                            <Button Content="📂" Width="20" Height="20" Command="{Binding DataContext.OpenFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Background="#3D3D3D" Foreground="#FFFFFF" BorderThickness="0" FontSize="10"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+
+                                    <!-- 底部项目控制级 -->
+                                    <Grid Grid.Row="2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="▶ 启动所有" Padding="8,3" Command="{Binding DataContext.StartAllCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Background="#2E7D32" Foreground="#FFFFFF" BorderThickness="0" Margin="0,0,5,0" FontSize="11"/>
+                                            <Button Content="■ 停止所有" Padding="8,3" Command="{Binding DataContext.StopAllCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Background="#C62828" Foreground="#FFFFFF" BorderThickness="0" FontSize="11"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <Button Content="✏" Width="24" Height="22" Command="{Binding DataContext.EditProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Background="#3D3D3D" Foreground="#FFFFFF" BorderThickness="0" Margin="0,0,4,0"/>
+                                            <Button Content="❌" Width="24" Height="22" Command="{Binding DataContext.DeleteProjectCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" Background="#B71C1C" Foreground="#FFFFFF" BorderThickness="0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                            <DataTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="CardBorder" Property="BorderBrush" Value="#4CAF50"/>
+                                    <Setter TargetName="CardBorder" Property="Background" Value="#252525"/>
+                                </Trigger>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter TargetName="CardBorder" Property="BorderBrush" Value="#4CAF50"/>
+                                    <Setter TargetName="CardBorder" Property="BorderThickness" Value="2"/>
+                                    <Setter TargetName="CardBorder" Property="Background" Value="#2D2D2D"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- 分割线 -->
+            <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch" Background="#2A2A2A" ResizeBehavior="PreviousAndNext"/>
+
+            <!-- 日志终端区域 -->
+            <Grid Grid.Row="2" Background="#0C0C0C">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="35"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Border BorderBrush="#1F1F1F" BorderThickness="0,0,0,1" Padding="15,0">
+                    <Grid>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="📄 日志 - 项目: " Foreground="#888888" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding SelectedProject.Name, TargetNullValue='未选中'}" Foreground="#FFFFFF" FontWeight="Bold" Margin="0,0,15,0" VerticalAlignment="Center"/>
+                            
+                            <!-- 子服务切换页签 TabControl -->
+                            <TabControl ItemsSource="{Binding SelectedProject.SubServices}" SelectedItem="{Binding SelectedSubService}" 
+                                        Background="Transparent" BorderThickness="0" Height="30" VerticalAlignment="Center">
+                                <TabControl.Resources>
+                                    <Style TargetType="TabControl">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="TabControl">
+                                                    <TabPanel IsItemsHost="True"/>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </TabControl.Resources>
+                                <TabControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Margin="6,2">
+                                            <Ellipse Width="8" Height="8" Fill="{Binding StatusBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBlock Text="{Binding Name}" Foreground="#E0E0E0" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </TabControl.ItemTemplate>
+                                <TabControl.ItemContainerStyle>
+                                    <Style TargetType="TabItem">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="Foreground" Value="#CCCCCC"/>
+                                        <Setter Property="BorderThickness" Value="0"/>
+                                        <Setter Property="Margin" Value="0,0,4,0"/>
+                                        <Setter Property="Padding" Value="12,6"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="TabItem">
+                                                    <Border x:Name="TabBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4,4,0,0">
+                                                        <ContentPresenter x:Name="ContentSite" ContentSource="Header" RecognizesAccessKey="True" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsSelected" Value="True">
+                                                            <Setter TargetName="TabBorder" Property="Background" Value="#2D2D2D"/>
+                                                            <Setter TargetName="TabBorder" Property="BorderBrush" Value="#4CAF50"/>
+                                                            <Setter TargetName="TabBorder" Property="BorderThickness" Value="0,0,0,2"/>
+                                                            <Setter Property="Foreground" Value="#FFFFFF"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="TabBorder" Property="Background" Value="#252525"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </TabControl.ItemContainerStyle>
+                            </TabControl>
+                        </StackPanel>
+                        <Button Content="清除日志" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                Padding="8,2" Background="#2D2D2D" Foreground="#FFFFFF" BorderThickness="0" Click="BtnClearLog_Click"/>
+                    </Grid>
+                </Border>
+                <!-- 日志 RichTextBox (美化且带 ANSI 颜色渲染) -->
+                <RichTextBox Grid.Row="1" x:Name="TxtLog" IsReadOnly="True" 
+                             Background="#0C0C0C" Foreground="#E0E0E0" FontFamily="Consolas" BorderThickness="0" Padding="10"
+                             VerticalScrollBarVisibility="Auto">
+                    <RichTextBox.Resources>
+                        <Style TargetType="Paragraph">
+                            <Setter Property="Margin" Value="0,0,0,2"/>
+                        </Style>
+                    </RichTextBox.Resources>
+                    <FlowDocument x:Name="FlowDoc"/>
+                </RichTextBox>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>
