@@ -127,6 +127,7 @@ func (s *Server) startPortPolling() {
 						}
 					} else if !inUse && !s.ProcMgr.IsRunning(svc.Id) && svc.Status == StatusRunning {
 						svc.Status = StatusStopped
+						s.ProcMgr.ResetTakeover(svc.Id)
 						s.broadcastStatus(svc.Id, StatusStopped)
 						projName := svc.ProjectName
 						if projName == "" {
@@ -143,6 +144,7 @@ func (s *Server) startPortPolling() {
 		}
 	}
 }
+
 
 
 
@@ -410,14 +412,11 @@ func (s *Server) handleStopAll(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 	serviceId := r.URL.Query().Get("id")
-	svc := s.findSubService(serviceId)
-	if svc != nil && svc.Port > 0 && s.PortMgr.IsPortInUse(svc.Port) {
-		s.ProcMgr.EnsureTakeoverLog(svc)
-	}
 	logs := s.ProcMgr.GetLogs(serviceId)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(logs)
 }
+
 
 func (s *Server) handleOpenFolder(w http.ResponseWriter, r *http.Request) {
 	var req struct {

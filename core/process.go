@@ -16,16 +16,16 @@ type StatusCallback func(serviceId string, status ProjectStatus)
 type PortCorrectionCallback func(serviceId string, detectedPort int)
 
 type ProcessManager struct {
-	mu               sync.RWMutex
-	runningCmds      map[string]*exec.Cmd
-	cancelFuncs      map[string]context.CancelFunc
-	ringBuffers      map[string]*RingBuffer
-	takeoverInjected map[string]bool
-	portManager      *PortManager
-	detector         *Detector
-	onLog            LogCallback
-	onStatus         StatusCallback
-	onPortUpdate     PortCorrectionCallback
+	mu             sync.RWMutex
+	runningCmds    map[string]*exec.Cmd
+	cancelFuncs    map[string]context.CancelFunc
+	ringBuffers    map[string]*RingBuffer
+	takeoverActive map[string]bool
+	portManager    *PortManager
+	detector       *Detector
+	onLog          LogCallback
+	onStatus       StatusCallback
+	onPortUpdate   PortCorrectionCallback
 }
 
 func NewProcessManager(
@@ -36,16 +36,17 @@ func NewProcessManager(
 	onPortUpdate PortCorrectionCallback,
 ) *ProcessManager {
 	return &ProcessManager{
-		runningCmds:      make(map[string]*exec.Cmd),
-		cancelFuncs:      make(map[string]context.CancelFunc),
-		ringBuffers:      make(map[string]*RingBuffer),
-		takeoverInjected: make(map[string]bool),
-		portManager:      pm,
-		detector:         det,
-		onLog:            onLog,
-		onStatus:         onStatus,
-		onPortUpdate:     onPortUpdate,
+		runningCmds:    make(map[string]*exec.Cmd),
+		cancelFuncs:    make(map[string]context.CancelFunc),
+		ringBuffers:    make(map[string]*RingBuffer),
+		takeoverActive: make(map[string]bool),
+		portManager:    pm,
+		detector:       det,
+		onLog:          onLog,
+		onStatus:       onStatus,
+		onPortUpdate:   onPortUpdate,
 	}
+
 }
 
 
@@ -238,12 +239,25 @@ func (p *ProcessManager) StartSubService(svc *SubService) {
 	}()
 }
 
-// EnsureTakeoverLog 当外部已有进程在端口运行且无日志时，自动注入接管与健康诊断日志
+// ResetTakeover 当服务停止或端口释放时重置接管状态
+func (p *ProcessManager) ResetTakeover(serviceId string) {
+	p.mu.Lock()
+	p.takeoverActive[serviceId] = false
+	p.mu.Unlock()
+}
+
+// EnsureTakeoverLog 当外部已有进程在端口运行且尚未接管时，原子注入接管与健康诊断日志
 func (p *ProcessManager) EnsureTakeoverLog(svc *SubService) {
 	if svc.Port <= 0 {
 		return
 	}
 	p.mu.Lock()
+	if p.takeoverActive[svc.Id] {
+		p.mu.Unlock()
+		return
+	}
+	p.takeoverActive[svc.Id] = true
+
 	rb, exists := p.ringBuffers[svc.Id]
 	if !exists {
 		rb = NewRingBuffer(3000)
@@ -272,7 +286,6 @@ func (p *ProcessManager) EnsureTakeoverLog(svc *SubService) {
 		header = append(header, fmt.Sprintf("\x1b[33m➜  局域网访问:   \x1b[0m\x1b[36mhttp://%s:%d/\x1b[0m", localIP, svc.Port))
 	}
 
-
 	header = append(header,
 		fmt.Sprintf("\x1b[33m➜  监听端口状态: \x1b[0m\x1b[33m:%d (TCP 监听正常)\x1b[0m", svc.Port),
 		fmt.Sprintf("\x1b[33m➜  系统进程信息: \x1b[0m\x1b[33mPID: %s (%s)\x1b[0m", pidStr, procName),
@@ -283,7 +296,9 @@ func (p *ProcessManager) EnsureTakeoverLog(svc *SubService) {
 	for _, l := range header {
 		rb.Push(l)
 	}
+	p.onLog(svc.Id, header)
 }
+
 
 
 
@@ -366,8 +381,9 @@ func (p *ProcessManager) StopSubService(svc *SubService) {
 	p.mu.Lock()
 	cancel, hasCancel := p.cancelFuncs[svc.Id]
 	cmd, hasCmd := p.runningCmds[svc.Id]
-	p.takeoverInjected[svc.Id] = false
+	p.takeoverActive[svc.Id] = false
 	rb, hasRb := p.ringBuffers[svc.Id]
+
 	if !hasRb {
 		rb = NewRingBuffer(3000)
 		p.ringBuffers[svc.Id] = rb
