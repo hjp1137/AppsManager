@@ -143,6 +143,8 @@ func (p *ProcessManager) StartSubService(svc *SubService) {
 		return
 	}
 
+	p.takeoverActive[svc.Id] = true
+
 	rb, exists := p.ringBuffers[svc.Id]
 	if !exists {
 		rb = NewRingBuffer(3000)
@@ -163,9 +165,13 @@ func (p *ProcessManager) StartSubService(svc *SubService) {
 			p.mu.Lock()
 			delete(p.runningCmds, svc.Id)
 			delete(p.cancelFuncs, svc.Id)
+			p.takeoverActive[svc.Id] = false
+			svc.ProcessId = nil
+			svc.Status = StatusStopped
 			p.mu.Unlock()
 			p.onStatus(svc.Id, StatusStopped)
 		}()
+
 
 		// 启动前若端口已被残留进程占用，自动先清理端口，防止 EADDRINUSE 报错
 		if svc.Port > 0 && p.portManager.IsPortInUse(svc.Port) {
@@ -256,6 +262,10 @@ func (p *ProcessManager) EnsureTakeoverLog(svc *SubService) {
 		p.mu.Unlock()
 		return
 	}
+	if _, isRunning := p.runningCmds[svc.Id]; isRunning {
+		p.mu.Unlock()
+		return
+	}
 	p.takeoverActive[svc.Id] = true
 
 	rb, exists := p.ringBuffers[svc.Id]
@@ -264,6 +274,7 @@ func (p *ProcessManager) EnsureTakeoverLog(svc *SubService) {
 		p.ringBuffers[svc.Id] = rb
 	}
 	p.mu.Unlock()
+
 
 	pids := p.portManager.GetPidsByPort(svc.Port)
 	pidStr := "未知"

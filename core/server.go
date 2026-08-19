@@ -123,9 +123,12 @@ func (s *Server) startPortPolling() {
 						if svc.Status != StatusRunning {
 							svc.Status = StatusRunning
 							s.broadcastStatus(svc.Id, StatusRunning)
-							s.ProcMgr.EnsureTakeoverLog(svc)
+							if !s.ProcMgr.IsRunning(svc.Id) {
+								s.ProcMgr.EnsureTakeoverLog(svc)
+							}
 						}
 					} else if !inUse && !s.ProcMgr.IsRunning(svc.Id) && svc.Status == StatusRunning {
+
 						svc.Status = StatusStopped
 						s.ProcMgr.ResetTakeover(svc.Id)
 						s.broadcastStatus(svc.Id, StatusStopped)
@@ -256,10 +259,13 @@ func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
 				}
 				if svc.Port > 0 && s.PortMgr.IsPortInUse(svc.Port) {
 					svc.Status = StatusRunning
-					s.ProcMgr.EnsureTakeoverLog(svc)
+					if !s.ProcMgr.IsRunning(svc.Id) {
+						s.ProcMgr.EnsureTakeoverLog(svc)
+					}
 				} else if !s.ProcMgr.IsRunning(svc.Id) {
 					svc.Status = StatusStopped
 				}
+
 			}
 		}
 		_ = json.NewEncoder(w).Encode(projects)
