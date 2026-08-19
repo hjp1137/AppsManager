@@ -128,7 +128,6 @@ func (s *Server) startPortPolling() {
 							}
 						}
 					} else if !inUse && !s.ProcMgr.IsRunning(svc.Id) && svc.Status == StatusRunning {
-
 						svc.Status = StatusStopped
 						s.ProcMgr.ResetTakeover(svc.Id)
 						s.broadcastStatus(svc.Id, StatusStopped)
@@ -136,12 +135,14 @@ func (s *Server) startPortPolling() {
 						if projName == "" {
 							projName = svc.Name
 						}
+						nowStr := time.Now().Format("2006-01-02 15:04:05")
 						s.ProcMgr.PushLog(svc.Id, []string{
 							"\x1b[33m------------------------------------------------------------\x1b[0m",
-							fmt.Sprintf("\x1b[1;31m⏹  [%s] 监听端口 :%d 已释放，服务已停止\x1b[0m", projName, svc.Port),
+							fmt.Sprintf("\x1b[1;31m⏹  [%s] 监听端口 :%d 已释放，服务已停止 [%s]\x1b[0m", projName, svc.Port, nowStr),
 							"\x1b[33m------------------------------------------------------------\x1b[0m",
 						})
 					}
+
 				}
 			}
 		}
@@ -388,17 +389,19 @@ func (s *Server) handleKillPort(w http.ResponseWriter, r *http.Request) {
 			if svc != nil && svc.ProjectName != "" {
 				projName = svc.ProjectName
 			}
+			nowStr := time.Now().Format("2006-01-02 15:04:05")
 			if killedCount > 0 {
 				s.broadcastLog(req.ServiceId, []string{
-					fmt.Sprintf("\x1b[33m[%s] ⚡ 成功终止占用端口 %d 的进程 (PID: %v)，端口已释放！\x1b[0m", projName, req.Port, killedPids),
+					fmt.Sprintf("\x1b[33m[%s] ⚡ [%s] 成功终止占用端口 %d 的进程 (PID: %v)，端口已释放！\x1b[0m", projName, nowStr, req.Port, killedPids),
 				})
 			} else {
 				s.broadcastLog(req.ServiceId, []string{
-					fmt.Sprintf("\x1b[32m[%s] ⚡ 端口 %d 检查完成，当前未被占用。\x1b[0m", projName, req.Port),
+					fmt.Sprintf("\x1b[32m[%s] ⚡ [%s] 端口 %d 检查完成，当前未被占用。\x1b[0m", projName, nowStr, req.Port),
 				})
 			}
 			s.broadcastStatus(req.ServiceId, StatusStopped)
 		}
+
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,

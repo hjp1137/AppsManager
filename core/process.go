@@ -213,11 +213,13 @@ func (p *ProcessManager) StartSubService(svc *SubService) {
 		pid := cmd.Process.Pid
 		svc.ProcessId = &pid
 		projName := getProjectDisplayName(svc)
+		nowStr := time.Now().Format("2006-01-02 15:04:05")
 
 		// 打印服务启动信息与访问地址
 		localIP := p.portManager.GetLocalIP()
 		rb.Push("\x1b[36m============================================================\x1b[0m")
 		rb.Push(fmt.Sprintf("\x1b[1;32m➜  [%s] 正在启动服务: %s\x1b[0m", projName, svc.Name))
+		rb.Push(fmt.Sprintf("\x1b[33m➜  启动时间:     \x1b[0m\x1b[33m%s\x1b[0m", nowStr))
 		rb.Push(fmt.Sprintf("\x1b[33m➜  工作目录:     \x1b[0m\x1b[33m%s\x1b[0m", workDir))
 		rb.Push(fmt.Sprintf("\x1b[33m➜  启动命令:     \x1b[0m\x1b[33m%s\x1b[0m", cmdLine))
 		if svc.Port > 0 {
@@ -233,9 +235,10 @@ func (p *ProcessManager) StartSubService(svc *SubService) {
 		p.streamLogs(ctx, svc, stdoutPipe, stderrPipe, rb)
 
 		_ = cmd.Wait()
+		exitTimeStr := time.Now().Format("2006-01-02 15:04:05")
 		exitMsg := []string{
 			"\x1b[33m------------------------------------------------------------\x1b[0m",
-			fmt.Sprintf("\x1b[1;31m⏹  [%s] 进程已退出，服务已停止 (工作目录: %s)\x1b[0m", projName, workDir),
+			fmt.Sprintf("\x1b[1;31m⏹  [%s] 进程已退出，服务已停止 [%s] (工作目录: %s)\x1b[0m", projName, exitTimeStr, workDir),
 			"\x1b[33m------------------------------------------------------------\x1b[0m",
 		}
 		for _, m := range exitMsg {
@@ -244,6 +247,7 @@ func (p *ProcessManager) StartSubService(svc *SubService) {
 		p.onLog(svc.Id, exitMsg)
 	}()
 }
+
 
 // ResetTakeover 当服务停止或端口释放时重置接管状态
 func (p *ProcessManager) ResetTakeover(serviceId string) {
@@ -286,10 +290,12 @@ func (p *ProcessManager) EnsureTakeoverLog(svc *SubService) {
 	health := p.portManager.CheckHttpHealth(svc.Port)
 	localIP := p.portManager.GetLocalIP()
 	projName := getProjectDisplayName(svc)
+	nowStr := time.Now().Format("2006-01-02 15:04:05")
 
 	header := []string{
 		"\x1b[36m============================================================\x1b[0m",
 		fmt.Sprintf("\x1b[1;32m➜  [%s 自动接管] 检测到服务正在后台正常运行中\x1b[0m", projName),
+		fmt.Sprintf("\x1b[33m➜  检测时间:     \x1b[0m\x1b[33m%s\x1b[0m", nowStr),
 		fmt.Sprintf("\x1b[33m➜  本地 IP 访问: \x1b[0m\x1b[36mhttp://127.0.0.1:%d/\x1b[0m", svc.Port),
 		fmt.Sprintf("\x1b[33m➜  本地域名访问: \x1b[0m\x1b[36mhttp://localhost:%d/\x1b[0m", svc.Port),
 	}
@@ -309,6 +315,7 @@ func (p *ProcessManager) EnsureTakeoverLog(svc *SubService) {
 	}
 	p.onLog(svc.Id, header)
 }
+
 
 
 
@@ -418,14 +425,16 @@ func (p *ProcessManager) StopSubService(svc *SubService) {
 	}
 
 	projName := getProjectDisplayName(svc)
+	nowStr := time.Now().Format("2006-01-02 15:04:05")
 	stopMsg := []string{
 		"\x1b[33m------------------------------------------------------------\x1b[0m",
-		fmt.Sprintf("\x1b[1;31m⏹  [%s] 服务已正式停止 (进程已退出，端口 :%d 已完全释放)\x1b[0m", projName, svc.Port),
+		fmt.Sprintf("\x1b[1;31m⏹  [%s] 服务已正式停止 [%s] (进程已退出，端口 :%d 已完全释放)\x1b[0m", projName, nowStr, svc.Port),
 		"\x1b[33m------------------------------------------------------------\x1b[0m",
 	}
 	for _, m := range stopMsg {
 		rb.Push(m)
 	}
+
 	p.onLog(svc.Id, stopMsg)
 
 	svc.Status = StatusStopped
