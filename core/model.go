@@ -11,6 +11,7 @@ const (
 type SubService struct {
 	Id           string        `json:"Id"`
 	Name         string        `json:"Name"`
+	ProjectName  string        `json:"ProjectName,omitempty"`
 	Path         string        `json:"Path"`
 	StartCommand string        `json:"StartCommand"`
 	Port         int           `json:"Port"`
@@ -18,6 +19,7 @@ type SubService struct {
 	ProcessId    *int          `json:"ProcessId,omitempty"`
 	LogContent   string        `json:"LogContent,omitempty"`
 }
+
 
 type ProjectItem struct {
 	Id          string        `json:"Id"`

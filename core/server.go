@@ -114,24 +114,36 @@ func (s *Server) startPortPolling() {
 		projects := s.ConfigMgr.GetProjects()
 		for _, p := range projects {
 			for _, svc := range p.SubServices {
+				if svc.ProjectName == "" {
+					svc.ProjectName = p.Name
+				}
 				if svc.Port > 0 {
 					inUse := s.PortMgr.IsPortInUse(svc.Port)
 					if inUse {
 						if svc.Status != StatusRunning {
 							svc.Status = StatusRunning
 							s.broadcastStatus(svc.Id, StatusRunning)
+							s.ProcMgr.EnsureTakeoverLog(svc)
 						}
-						s.ProcMgr.EnsureTakeoverLog(svc)
 					} else if !inUse && !s.ProcMgr.IsRunning(svc.Id) && svc.Status == StatusRunning {
 						svc.Status = StatusStopped
 						s.broadcastStatus(svc.Id, StatusStopped)
+						projName := svc.ProjectName
+						if projName == "" {
+							projName = svc.Name
+						}
+						s.ProcMgr.PushLog(svc.Id, []string{
+							"\x1b[33m------------------------------------------------------------\x1b[0m",
+							fmt.Sprintf("\x1b[1;31m⏹  [%s] 监听端口 :%d 已释放，服务已停止\x1b[0m", projName, svc.Port),
+							"\x1b[33m------------------------------------------------------------\x1b[0m",
+						})
 					}
 				}
-
 			}
 		}
 	}
 }
+
 
 
 func (s *Server) SetupRoutes(mux *http.ServeMux) {
@@ -237,6 +249,9 @@ func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
 		projects := s.ConfigMgr.GetProjects()
 		for _, p := range projects {
 			for _, svc := range p.SubServices {
+				if svc.ProjectName == "" {
+					svc.ProjectName = p.Name
+				}
 				if svc.Port > 0 && s.PortMgr.IsPortInUse(svc.Port) {
 					svc.Status = StatusRunning
 					s.ProcMgr.EnsureTakeoverLog(svc)
@@ -248,6 +263,7 @@ func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(projects)
 		return
 	}
+
 
 
 	if r.Method == http.MethodPost {
@@ -289,6 +305,9 @@ func (s *Server) findSubService(serviceId string) *SubService {
 			if svc.Id == serviceId {
 				if svc.Path == "" {
 					svc.Path = p.Path
+				}
+				if svc.ProjectName == "" {
+					svc.ProjectName = p.Name
 				}
 				return svc
 			}
@@ -356,13 +375,18 @@ func (s *Server) handleKillPort(w http.ResponseWriter, r *http.Request) {
 		killedCount = len(killedPids)
 
 		if req.ServiceId != "" {
+			svc := s.findSubService(req.ServiceId)
+			projName := "应用服务"
+			if svc != nil && svc.ProjectName != "" {
+				projName = svc.ProjectName
+			}
 			if killedCount > 0 {
 				s.broadcastLog(req.ServiceId, []string{
-					fmt.Sprintf("\x1b[33m[AppsManager] ⚡ 成功终止占用端口 %d 的进程 (PID: %v)，端口已释放！\x1b[0m", req.Port, killedPids),
+					fmt.Sprintf("\x1b[33m[%s] ⚡ 成功终止占用端口 %d 的进程 (PID: %v)，端口已释放！\x1b[0m", projName, req.Port, killedPids),
 				})
 			} else {
 				s.broadcastLog(req.ServiceId, []string{
-					fmt.Sprintf("\x1b[32m[AppsManager] ⚡ 端口 %d 检查完成，当前未被占用。\x1b[0m", req.Port),
+					fmt.Sprintf("\x1b[32m[%s] ⚡ 端口 %d 检查完成，当前未被占用。\x1b[0m", projName, req.Port),
 				})
 			}
 			s.broadcastStatus(req.ServiceId, StatusStopped)

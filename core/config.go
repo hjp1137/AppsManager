@@ -45,11 +45,12 @@ func (cm *ConfigManager) Load() []*ProjectItem {
 		return cm.Projects
 	}
 
-	// 强制重置启动状态为已停止
+	// 强制重置启动状态为已停止并关联项目名称
 	for _, p := range projects {
 		for _, svc := range p.SubServices {
 			svc.Status = StatusStopped
 			svc.ProcessId = nil
+			svc.ProjectName = p.Name
 		}
 	}
 
@@ -61,13 +62,15 @@ func (cm *ConfigManager) Save(projects []*ProjectItem) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	// 保存时同样清除运行态脏数据
+	// 保存时同样清除运行态脏数据并关联项目名称
 	for _, p := range projects {
 		for _, svc := range p.SubServices {
 			svc.Status = StatusStopped
 			svc.ProcessId = nil
+			svc.ProjectName = p.Name
 		}
 	}
+
 
 	cm.Projects = projects
 	data, err := json.MarshalIndent(projects, "", "  ")

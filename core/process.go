@@ -91,6 +91,31 @@ func (rb *RingBuffer) Clear() {
 	rb.lines = rb.lines[:0]
 }
 
+func getProjectDisplayName(svc *SubService) string {
+	if svc.ProjectName != "" {
+		return svc.ProjectName
+	}
+	if svc.Name != "" {
+		return svc.Name
+	}
+	return "应用服务"
+}
+
+func (p *ProcessManager) PushLog(serviceId string, lines []string) {
+	p.mu.Lock()
+	rb, exists := p.ringBuffers[serviceId]
+	if !exists {
+		rb = NewRingBuffer(3000)
+		p.ringBuffers[serviceId] = rb
+	}
+	p.mu.Unlock()
+
+	for _, l := range lines {
+		rb.Push(l)
+	}
+	p.onLog(serviceId, lines)
+}
+
 func (p *ProcessManager) GetLogs(serviceId string) []string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -106,6 +131,7 @@ func (p *ProcessManager) IsRunning(serviceId string) bool {
 	_, running := p.runningCmds[serviceId]
 	return running
 }
+
 
 
 // StartSubService 独立协程物理隔离启动单个服务
@@ -179,11 +205,12 @@ func (p *ProcessManager) StartSubService(svc *SubService) {
 
 		pid := cmd.Process.Pid
 		svc.ProcessId = &pid
+		projName := getProjectDisplayName(svc)
 
 		// 打印服务启动信息与访问地址
 		localIP := p.portManager.GetLocalIP()
 		rb.Push("\x1b[36m============================================================\x1b[0m")
-		rb.Push(fmt.Sprintf("\x1b[1;32m➜  [AppsManager] 正在启动服务: %s\x1b[0m", svc.Name))
+		rb.Push(fmt.Sprintf("\x1b[1;32m➜  [%s] 正在启动服务: %s\x1b[0m", projName, svc.Name))
 		rb.Push(fmt.Sprintf("\x1b[33m➜  工作目录:     \x1b[0m\x1b[33m%s\x1b[0m", workDir))
 		rb.Push(fmt.Sprintf("\x1b[33m➜  启动命令:     \x1b[0m\x1b[33m%s\x1b[0m", cmdLine))
 		if svc.Port > 0 {
@@ -201,7 +228,7 @@ func (p *ProcessManager) StartSubService(svc *SubService) {
 		_ = cmd.Wait()
 		exitMsg := []string{
 			"\x1b[33m------------------------------------------------------------\x1b[0m",
-			fmt.Sprintf("\x1b[1;31m⏹  [AppsManager] 进程已退出，服务已停止 (工作目录: %s)\x1b[0m", workDir),
+			fmt.Sprintf("\x1b[1;31m⏹  [%s] 进程已退出，服务已停止 (工作目录: %s)\x1b[0m", projName, workDir),
 			"\x1b[33m------------------------------------------------------------\x1b[0m",
 		}
 		for _, m := range exitMsg {
@@ -217,19 +244,10 @@ func (p *ProcessManager) EnsureTakeoverLog(svc *SubService) {
 		return
 	}
 	p.mu.Lock()
-	if p.takeoverInjected[svc.Id] {
-		p.mu.Unlock()
-		return
-	}
-	p.takeoverInjected[svc.Id] = true
 	rb, exists := p.ringBuffers[svc.Id]
 	if !exists {
 		rb = NewRingBuffer(3000)
 		p.ringBuffers[svc.Id] = rb
-	}
-	if len(rb.lines) > 0 {
-		p.mu.Unlock()
-		return
 	}
 	p.mu.Unlock()
 
@@ -242,16 +260,18 @@ func (p *ProcessManager) EnsureTakeoverLog(svc *SubService) {
 	}
 	health := p.portManager.CheckHttpHealth(svc.Port)
 	localIP := p.portManager.GetLocalIP()
+	projName := getProjectDisplayName(svc)
 
 	header := []string{
 		"\x1b[36m============================================================\x1b[0m",
-		fmt.Sprintf("\x1b[1;32m➜  [AppsManager 自动接管] 检测到服务正在后台正常运行中\x1b[0m"),
+		fmt.Sprintf("\x1b[1;32m➜  [%s 自动接管] 检测到服务正在后台正常运行中\x1b[0m", projName),
 		fmt.Sprintf("\x1b[33m➜  本地 IP 访问: \x1b[0m\x1b[36mhttp://127.0.0.1:%d/\x1b[0m", svc.Port),
 		fmt.Sprintf("\x1b[33m➜  本地域名访问: \x1b[0m\x1b[36mhttp://localhost:%d/\x1b[0m", svc.Port),
 	}
 	if localIP != "" && localIP != "127.0.0.1" {
 		header = append(header, fmt.Sprintf("\x1b[33m➜  局域网访问:   \x1b[0m\x1b[36mhttp://%s:%d/\x1b[0m", localIP, svc.Port))
 	}
+
 
 	header = append(header,
 		fmt.Sprintf("\x1b[33m➜  监听端口状态: \x1b[0m\x1b[33m:%d (TCP 监听正常)\x1b[0m", svc.Port),
@@ -370,9 +390,10 @@ func (p *ProcessManager) StopSubService(svc *SubService) {
 		p.portManager.KillProcessOnPort(svc.Port)
 	}
 
+	projName := getProjectDisplayName(svc)
 	stopMsg := []string{
 		"\x1b[33m------------------------------------------------------------\x1b[0m",
-		fmt.Sprintf("\x1b[1;31m⏹  [AppsManager] 服务已正式停止 (进程已退出，端口 :%d 已完全释放)\x1b[0m", svc.Port),
+		fmt.Sprintf("\x1b[1;31m⏹  [%s] 服务已正式停止 (进程已退出，端口 :%d 已完全释放)\x1b[0m", projName, svc.Port),
 		"\x1b[33m------------------------------------------------------------\x1b[0m",
 	}
 	for _, m := range stopMsg {
@@ -380,8 +401,11 @@ func (p *ProcessManager) StopSubService(svc *SubService) {
 	}
 	p.onLog(svc.Id, stopMsg)
 
+	svc.Status = StatusStopped
+	svc.ProcessId = nil
 	p.onStatus(svc.Id, StatusStopped)
 }
+
 
 func (p *ProcessManager) StopAll(services []*SubService) {
 	for _, s := range services {
